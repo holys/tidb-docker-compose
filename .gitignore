@@ -6,3 +6,4 @@
 /tidb/bin
 /tidb-vision/tidb-vision
 /tmp
+/data_*
