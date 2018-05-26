@@ -1,0 +1,155 @@
+---
+# Source: tidb-docker-compose/templates/docker-compose.yml
+
+version: '2.1'
+
+services:
+  zookeeper:
+    # use official zookeeper image
+    image: zookeeper
+    ports:
+      - "2181:2181"
+    
+  kafka:
+    image: wurstmeister/kafka
+    ports:
+      - "9092:9092"
+    environment:
+      # YOU MUST CHANGE THE IP TO YOURS.
+      KAFKA_ADVERTISED_HOST_NAME: 192.168.199.123
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181 
+      # CHANGE IT TO YOURS.
+      KAFKA_NUM_PARTITIONS: 10
+      KAFKA_MESSAGE_MAX_BYTES: 10485760
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 10485760
+      KAFKA_DELETE_TOPIC_ENABLE: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - "zookeeper"
+
+  pd0:
+    image: pingcap/pd:latest
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    volumes:
+      - ./config/pd.toml:/pd.toml:ro
+      # - ./data:/data
+    command:
+      - --name=pd0
+      - --client-urls=http://0.0.0.0:2379
+      - --peer-urls=http://0.0.0.0:2380
+      - --advertise-client-urls=http://pd0:2379
+      - --advertise-peer-urls=http://pd0:2380
+      - --initial-cluster=pd0=http://pd0:2380
+      - --data-dir=/data/pd0
+      - --config=/pd.toml
+    # sysctls:
+    #   net.core.somaxconn: 32768
+    # ulimits:
+    #   nofile:
+    #     soft: 1000000
+    #     hard: 1000000
+    restart: on-failure
+  tikv0:
+    image: pingcap/tikv:latest
+    volumes:
+      - ./config/tikv.toml:/tikv.toml:ro
+      # - ./data:/data
+    command:
+      - --addr=0.0.0.0:20160
+      - --advertise-addr=tikv0:20160
+      - --data-dir=/data/tikv0
+      - --pd=pd0:2379
+      - --config=/tikv.toml
+      - --import-mode
+    depends_on:
+      - "pd0"
+    # sysctls:
+    #   net.core.somaxconn: 32768
+    # ulimits:
+    #   nofile:
+    #     soft: 1000000
+    #     hard: 1000000
+    restart: on-failure
+
+  tidb:
+    image: pingcap/tidb:latest
+    ports:
+      - "4000:4000"
+      - "10080:10080"
+    volumes:
+      - ./config/tidb.toml:/tidb.toml:ro
+      - /tmp:/tmp
+    command:
+      - --store=tikv
+      - --path=pd0:2379
+      - --config=/tidb.toml
+      - --binlog-socket=/tmp/pump.sock
+    depends_on:
+      - "tikv0"
+      - "pump"
+    # sysctls:
+    #   net.core.somaxconn: 32768
+    # ulimits:
+    #   nofile:
+    #     soft: 1000000
+    #     hard: 1000000
+    restart: on-failure
+
+    
+  pump:
+    image: pingcap/pump:latest
+    ports:
+      - "8250:8250"
+    volumes:
+      - /tmp:/tmp
+      - ./data_binlog_dev/data.pump:/data.pump
+      - ./config/pump.toml:/pump.toml:ro
+    command:
+      - --kafka-addrs=kafka:9092
+      # - -zookeeper-addrs=zookeeper:2181
+      - --pd-urls=http://pd0:2379
+      - -config=/pump.toml
+    depends_on:
+      - "tikv0"
+      - "zookeeper"
+      - "kafka"
+      - "pd0"
+    restart: on-failure
+
+
+  # monitors
+  pushgateway:
+    image: prom/pushgateway:v0.3.1
+    restart: on-failure
+  prometheus:
+    user: root
+    image: prom/prometheus:v2.0.0
+    command:
+      - --storage.tsdb.path=/data/prometheus
+      - --config.file=/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
+      - ./data:/data
+    restart: on-failure
+  grafana:
+    image: grafana/grafana:4.6.3
+    ports:
+      - "3000:3000"
+    restart: on-failure
+  dashboard-installer:
+    image: pingcap/tidb-dashboard-installer:v1.0.0
+    command: ["grafana:3000"]
+    volumes:
+      - ./config/grafana-datasource.json:/datasource.json:ro
+      - ./config/pd-dashboard.json:/pd.json:ro
+      - ./config/tikv-dashboard.json:/tikv.json:ro
+      - ./config/tidb-dashboard.json:/tidb.json:ro
+      - ./config/overview-dashboard.json:/overview.json:ro
+    restart: on-failure
+

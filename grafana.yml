@@ -1,0 +1,39 @@
+---
+# Source: tidb-docker-compose/templates/docker-compose.yml
+
+version: '2.1'
+
+services:
+  # monitors
+  pushgateway:
+    image: prom/pushgateway:v0.3.1
+    restart: on-failure
+  prometheus:
+    user: root
+    image: prom/prometheus:v2.0.0
+    command:
+      - --storage.tsdb.path=/data/prometheus
+      - --config.file=/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
+      - ./data_grafana:/data
+    restart: on-failure
+  grafana:
+    image: grafana/grafana:4.6.3
+    ports:
+      - "3000:3000"
+    restart: on-failure
+  dashboard-installer:
+    image: pingcap/tidb-dashboard-installer:v1.0.0
+    command: ["grafana:3000"]
+    volumes:
+      - ./config/grafana-datasource.json:/datasource.json:ro
+      - ./config/pd-dashboard.json:/pd.json:ro
+      - ./config/tikv-dashboard.json:/tikv.json:ro
+      - ./config/tidb-dashboard.json:/tidb.json:ro
+      - ./config/overview-dashboard.json:/overview.json:ro
+    restart: on-failure
+
