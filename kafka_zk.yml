@@ -1,0 +1,26 @@
+version: '2.1'
+
+services:
+  zookeeper:
+    # use official zookeeper image
+    image: zookeeper
+    ports:
+      - "2181:2181"
+    
+  kafka:
+    image: wurstmeister/kafka
+    ports:
+      - "9092:9092"
+    environment:
+      # YOU MUST CHANGE THE IP TO YOURS.
+      KAFKA_ADVERTISED_HOST_NAME: 192.168.199.123
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181 
+      # CHANGE IT TO YOURS.
+      KAFKA_NUM_PARTITIONS: 10
+      KAFKA_MESSAGE_MAX_BYTES: 10485760
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 10485760
+      KAFKA_DELETE_TOPIC_ENABLE: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - "zookeeper"
