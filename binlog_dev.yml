@@ -63,7 +63,6 @@ services:
       - --data-dir=/data/tikv0
       - --pd=pd0:2379
       - --config=/tikv.toml
-      - --import-mode
     depends_on:
       - "pd0"
     # sysctls:

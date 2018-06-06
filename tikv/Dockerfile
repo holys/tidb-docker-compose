@@ -1,4 +1,4 @@
-FROM pingcap/alpine-glibc
+FROM pingcap/rust:latest
 
 ADD bin/tikv-server /tikv-server
 
