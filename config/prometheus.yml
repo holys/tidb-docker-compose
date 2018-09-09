@@ -9,6 +9,20 @@ scrape_configs:
       - targets: ['pushgateway:9091']
         labels:
           cluster: 'tidb-cluster'
+  - job_name: 'tidb-lightning'
+    scrape_interval: 5s
+    honor_labels: true
+    static_configs:
+      - targets: ['192.168.198.151:10089']
+        labels:
+          cluster: 'tidb-lightning'
+  - job_name: 'syncer'
+    scrape_interval: 5s
+    honor_labels: true
+    static_configs:
+      - targets: ['192.168.198.23:10081','192.168.198.23:10082']
+        labels:
+          cluster: 'tidb-syncer'
 rule_files:
   - 'pd.rules.yml'
   - 'tikv.rules.yml'
